@@ -1,0 +1,108 @@
+services:
+  app:
+    build: ./app
+    container_name: observability-lab-app
+    ports:
+      - "5000:5000"
+    networks:
+      - observability
+    restart: unless-stopped
+    labels:
+      logging: "promtail"
+      com.docker.compose.service: "app"
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    platform: linux/amd64
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    networks:
+      - observability
+    restart: unless-stopped
+    depends_on:
+      - app
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    platform: linux/amd64
+    container_name: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    networks:
+      - observability
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    platform: linux/amd64
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_ALERTING_ENABLED=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - observability
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+
+  loki:
+    image: grafana/loki:2.9.7
+    platform: linux/amd64
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - observability
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.7
+    platform: linux/amd64
+    container_name: promtail
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-positions:/tmp
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - observability
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+networks:
+  observability:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  promtail-positions:

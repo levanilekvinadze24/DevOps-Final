@@ -1,0 +1,15 @@
+groups:
+  - name: observability-lab-alerts
+    rules:
+      - alert: HighApplicationErrorRate
+        expr: increase(app_errors_total[1m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          service: observability-lab-app
+        annotations:
+          summary: "CRITICAL: Application error rate exceeds 5 per minute"
+          description: >-
+            The application generated {{ $value | printf "%.0f" }} errors in the
+            last minute (threshold: > 5 errors/min). Investigate /api/error
+            endpoint activity and review application logs in Grafana/Loki immediately.
