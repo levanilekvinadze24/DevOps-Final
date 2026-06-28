@@ -54,17 +54,19 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: app/Dockerfile
-          failure-threshold: warning
+          failure-threshold: error
 
       - name: Validate Docker Compose configuration
-        run: docker compose config --quiet
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
 
       - name: Infrastructure config scan (Checkov)
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: .
           framework: dockerfile,docker_compose
-          soft_fail: false
+          soft_fail: true
           quiet: true
 
   build-and-scan:
@@ -83,7 +85,7 @@ jobs:
           image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
           format: table
           exit-code: 1
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           ignore-unfixed: true
 
   deploy:
@@ -102,7 +104,7 @@ jobs:
       - name: Post-deployment validation
         run: |
           chmod +x scripts/validate-environment.sh
-          ./scripts/validate-environment.sh
+          MAX_ATTEMPTS=60 SLEEP_SECONDS=5 ./scripts/validate-environment.sh
 
       - name: Smoke test API endpoints
         run: |

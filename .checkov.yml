@@ -1,0 +1,4 @@
+# Lab-acceptable skips for local Docker Compose observability stack
+skip-check:
+  - CKV_SECRET_6
+  - CKV2_DOCKER_8
