@@ -1,14 +1,34 @@
-# DevOps Observability Lab
+# DevOps Final Project — Observability Lab
 
-A complete observability stack for a containerized Python application, deployable with a single command. The system collects **metrics** (Prometheus + Grafana), **logs** (Loki + Promtail), and **alerts** (Prometheus rules + Grafana Alerting) using industry-standard tools.
+A production-oriented DevOps stack built on the semester's assignments: a containerized Python application with **CI/CD**, **security automation**, **monitoring**, **logging**, **alerting**, and **reliability** tooling. The full environment starts with a single command and runs entirely locally via Docker Compose (no paid cloud services required).
 
-## Quick Start
+**Repository:** https://github.com/levanilekvinadze24/devops-observability-lab
 
-**Prerequisites:** Docker and Docker Compose installed.
+**Prior assignments integrated:**
+- [DevOps Assignment 1](https://github.com/levanilekvinadze24/DevOps-Assigment1) — CI/CD foundations, automated testing
+- [DevOps Midterm](https://github.com/levanilekvinadze24/DevOps-Midterm) — deployment automation, health monitoring
+- [Observability Lab](https://github.com/levanilekvinadze24/devops-observability-lab) — Prometheus, Grafana, Loki, Alertmanager
+
+---
+
+## Quick Start (Single Command)
+
+**Prerequisites:** Docker Desktop with Docker Compose v2.
+
+### Windows (PowerShell)
+
+```powershell
+.\scripts\setup.ps1
+```
+
+### Linux / macOS
 
 ```bash
-docker compose up -d --build
+chmod +x scripts/*.sh
+./scripts/setup.sh
 ```
+
+This script copies `.env.example` → `.env`, builds all containers, starts the stack, and runs automated validation.
 
 | Service       | URL                              | Credentials   |
 |---------------|----------------------------------|---------------|
@@ -18,10 +38,11 @@ docker compose up -d --build
 | Alertmanager  | http://localhost:9093            | —             |
 | Loki          | http://localhost:3100            | —             |
 
-Verify the app is healthy:
+Verify manually:
 
 ```bash
 curl http://localhost:5000/health
+curl http://localhost:5000/ready
 curl http://localhost:5000/metrics
 ```
 
@@ -33,212 +54,268 @@ docker compose down
 
 ---
 
-## Architecture Diagram
+## Project Architecture
 
 ```mermaid
-flowchart LR
+flowchart TB
+    subgraph DevOps Pipeline
+        GIT[Git Repository]
+        CI[GitHub Actions CI/CD]
+        SEC[Security Scans]
+        DEP[Deploy & Validate]
+    end
+
     subgraph Application Layer
-        APP["Flask App<br/>:5000"]
+        APP["Flask App :5000<br/>/health /ready /metrics"]
     end
 
     subgraph Metrics Pipeline
-        PROM["Prometheus<br/>:9090"]
-        AM["Alertmanager<br/>:9093"]
+        PROM["Prometheus :9090"]
+        AM["Alertmanager :9093"]
     end
 
     subgraph Logging Pipeline
         PT["Promtail"]
-        LOKI["Loki<br/>:3100"]
+        LOKI["Loki :3100"]
     end
 
     subgraph Visualization
-        GRAF["Grafana<br/>:3000"]
+        GRAF["Grafana :3000"]
     end
 
-    APP -->|"/metrics scrape"| PROM
-    APP -->|"JSON logs (stdout)"| PT
-    PT -->|"push logs"| LOKI
-    PROM -->|"CRITICAL alert"| AM
-    PROM -->|"PromQL queries"| GRAF
-    LOKI -->|"LogQL queries"| GRAF
-    AM -->|"alert state"| GRAF
+    GIT --> CI
+    CI --> SEC
+    SEC --> DEP
+    DEP --> APP
+
+    APP -->|scrape /metrics| PROM
+    APP -->|JSON logs stdout| PT
+    PT --> LOKI
+    PROM -->|alert rules| AM
+    PROM --> GRAF
+    LOKI --> GRAF
+    AM --> GRAF
 ```
 
-**Data flow summary:**
+**Components:**
 
-1. The Flask app exposes a `/metrics` endpoint with `app_requests_total` and `app_errors_total` counters, and writes structured JSON logs to stdout.
-2. **Prometheus** scrapes `/metrics` every 15 seconds and evaluates alert rules.
-3. **Promtail** discovers Docker containers via the Docker socket, parses JSON log lines, and ships them to **Loki**.
-4. **Grafana** queries Prometheus (metrics) and Loki (logs) and displays dashboards and alert rules.
-5. When the error rate exceeds 5/min, **Prometheus** fires a CRITICAL alert routed to **Alertmanager**.
+| Layer | Tool | Purpose |
+|-------|------|---------|
+| Application | Flask + Gunicorn | Instrumented API with Prometheus metrics and JSON logging |
+| CI/CD | GitHub Actions | Test → security scan → build → container scan → deploy & verify |
+| Metrics | Prometheus | Scrapes `/metrics`, evaluates alert rules and SLOs |
+| Logs | Loki + Promtail | Collects structured JSON logs from Docker containers |
+| Dashboards | Grafana | Pre-provisioned dashboards, datasources, and alert rules |
+| Alerting | Alertmanager | Routes critical/warning alerts by severity |
+| IaC | Docker Compose | Declarative multi-service stack with health checks |
 
 ---
 
-## Implementation Details
+## Branching Strategy
 
-### Application Instrumentation
+| Branch | Purpose | CI/CD |
+|--------|---------|-------|
+| `main` | Production-ready code | Full pipeline + automated deploy verification |
+| `develop` | Integration branch | CI + security scans (no deploy) |
+| `feature/*` | New features | CI on pull request to `main` |
 
-The application (`app/main.py`) is a Flask service instrumented with:
-
-- **`app_requests_total`** — Counter labeled by `method`, `endpoint`, and `status`
-- **`app_errors_total`** — Counter labeled by `error_type`
-- **JSON-structured logging** — Every log line is a single JSON object with `timestamp`, `level`, `message`, `service`, and contextual fields
-
-Key endpoints:
-
-| Endpoint              | Purpose                                      |
-|-----------------------|----------------------------------------------|
-| `GET /health`         | Health check                                 |
-| `GET /api/data`       | Normal traffic (generates INFO logs)         |
-| `GET /api/error`      | Simulates a single error (+1 to counter)     |
-| `GET /api/error/bulk` | Simulates N errors (`?count=10`)             |
-| `GET /metrics`        | Prometheus metrics exposition                |
-
-### Logging Strategy: Loki + Promtail
-
-We chose **Loki + Promtail** over the ELK stack because:
-
-- Loki indexes only **labels** (metadata), not full log content — lower storage and memory footprint
-- Promtail integrates natively with Docker via service discovery (`docker_sd_configs`)
-- Grafana can query both metrics and logs in one UI (no separate Kibana instance)
-- The stack is lighter and faster to deploy for a lab environment
-
-**Pipeline:**
-
-1. App writes JSON to stdout → captured by Docker's logging driver
-2. Promtail tails container logs via `/var/run/docker.sock`
-3. Promtail parses JSON fields (`level`, `service`, `error_type`) and attaches them as Loki labels
-4. Logs are pushed to Loki and queried in Grafana with LogQL: `{container="observability-lab-app"} | json | level="ERROR"`
-
-### Monitoring Strategy: Prometheus + Grafana
-
-- Prometheus scrapes the app every 15s at `/metrics`
-- A pre-provisioned Grafana dashboard (**Observability Lab - Application Metrics**) shows request rates, error counts, and a live error log panel
-- Grafana datasources (Prometheus + Loki) are auto-provisioned on startup
-
-### Alerting
-
-A **Prometheus recording rule** in `prometheus/alerts.yml` fires when more than 5 errors occur in a 1-minute window:
-
-```yaml
-expr: increase(app_errors_total[1m]) > 5
-for: 1m
-labels:
-  severity: critical
-```
-
-A matching **Grafana alert rule** is also provisioned so the alert appears in Grafana's Alerting tab.
+Workflow: feature branches → PR to `main` → CI must pass (tests + security) → merge triggers CD validation.
 
 ---
 
-## How to Trigger the CRITICAL Alert
+## Deployment Workflow
 
-The alert fires when `app_errors_total` increases by more than **5 in 1 minute**, sustained for **1 minute**.
+```mermaid
+flowchart LR
+    A[Push to main] --> B[Unit Tests]
+    B --> C[Security Scans]
+    C --> D[Build Image]
+    D --> E[Trivy Container Scan]
+    E --> F[Docker Compose Deploy]
+    F --> G[Post-Deploy Validation]
+    G --> H[Smoke Tests]
+```
 
-### Option 1 — Bulk endpoint (fastest)
+### Local deployment
 
 ```bash
+./scripts/deploy.sh          # Linux/macOS
+.\scripts\deploy.ps1         # Windows
+```
+
+Deploy rebuilds the app container, restarts it, saves a rollback reference, and runs validation.
+
+### Rollback
+
+```bash
+./scripts/rollback.sh        # Linux/macOS
+.\scripts\rollback.ps1       # Windows
+```
+
+See [docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md) for the full recovery runbook.
+
+---
+
+## Environment Setup
+
+1. Clone the repository
+2. Ensure Docker Desktop is running
+3. Run `scripts/setup.ps1` (Windows) or `scripts/setup.sh` (Linux/macOS)
+4. Optional: edit `.env` (created from `.env.example`) to customize ports and credentials
+
+**Validation:**
+
+```bash
+./scripts/validate-environment.sh
+```
+
+**Continuous health monitoring:**
+
+```bash
+./scripts/health-monitor.sh    # polls /health and /ready every 30s
+```
+
+---
+
+## Security Implementation
+
+Security checks are integrated into the CI/CD pipeline (`.github/workflows/ci-cd.yml`):
+
+| Check | Tool | Scope |
+|-------|------|-------|
+| Secrets scanning | Gitleaks | Entire repository |
+| Dependency vulnerabilities | pip-audit | `app/requirements.txt` |
+| Dockerfile lint | Hadolint | `app/Dockerfile` |
+| Compose validation | `docker compose config` | Infrastructure config |
+| IaC security | Checkov | Dockerfile + Docker Compose |
+| Container image scan | Trivy | Built application image (CRITICAL/HIGH) |
+
+**Additional hardening:**
+
+- Application runs as non-root user (`appuser`) in the container
+- Secrets managed via `.env` file (gitignored); template in `.env.example`
+- Grafana signup disabled; admin credentials via environment variables
+- Read-only volume mounts for Prometheus, Alertmanager, and Grafana provisioning
+
+Run security checks locally:
+
+```bash
+make security    # requires pip-audit installed
+make lint        # Dockerfile lint via Hadolint container
+```
+
+---
+
+## Monitoring, Logging & Alerting
+
+### Metrics (Prometheus + Grafana)
+
+- `app_requests_total` — counter by method, endpoint, status
+- `app_errors_total` — counter by error type
+- Pre-provisioned Grafana dashboard: **Observability Lab - Application Metrics**
+
+### Logs (Loki + Promtail)
+
+Structured JSON logs with fields: `timestamp`, `level`, `message`, `service`, `duration_ms`.
+
+LogQL example:
+
+```logql
+{container="observability-lab-app"} | json | level="ERROR"
+```
+
+### Alert rules
+
+| Alert | Severity | Condition |
+|-------|----------|-----------|
+| `HighApplicationErrorRate` | critical | >5 errors/min for 1 min |
+| `ApplicationDown` | critical | Prometheus scrape target down |
+| `HighErrorRateWarning` | warning | >10 errors in 5 min |
+| `SLOAvailabilityBreach` | warning | Success rate <99% for 5 min |
+
+Trigger the critical alert:
+
+```bash
+./scripts/trigger-alert.sh
+# or
 curl "http://localhost:5000/api/error/bulk?count=10"
 ```
 
-### Option 2 — Helper script (Windows PowerShell)
-
-```powershell
-.\scripts\trigger-alert.ps1
-```
-
-### Option 3 — Helper script (Linux/macOS)
-
-```bash
-chmod +x scripts/trigger-alert.sh
-./scripts/trigger-alert.sh
-```
-
-### Option 4 — Manual repeated calls
-
-```bash
-for i in $(seq 1 10); do curl -s http://localhost:5000/api/error; done
-```
-
-### Verify the alert fired
-
-1. **Prometheus** → http://localhost:9090/alerts — `HighApplicationErrorRate` should show **FIRING** (red)
-2. **Grafana** → Alerting → Alert rules — `CRITICAL - High Application Error Rate` should show **Firing**
-3. **Alertmanager** → http://localhost:9093 — alert listed under "critical"
-
-> Allow 1–2 minutes after triggering errors for the `for: 1m` evaluation window to complete.
+Verify at:
+- Prometheus: http://localhost:9090/alerts
+- Grafana: http://localhost:3000/alerting/list
+- Alertmanager: http://localhost:9093
 
 ---
 
-## Evidence (Screenshots)
+## Reliability Improvements
 
-Place your screenshots in the `screenshots/` folder and reference them below.
-
-### 1. Grafana Dashboard — Custom Application Metrics
-
-![Grafana dashboard showing app_requests_total and app_errors_total](screenshots/grafana-dashboard.png)
-
-*Navigate to: Grafana → Dashboards → Observability Lab → **Observability Lab - Application Metrics***
-
-### 2. Log Analysis — Filtered JSON Logs in Grafana (Loki)
-
-![Grafana Explore showing filtered JSON error logs from Loki](screenshots/grafana-logs.png)
-
-*Navigate to: Grafana → Explore → Loki → Query: `{container="observability-lab-app"} | json | level="ERROR"`*
-
-### 3. Grafana Alerting — Active Alert Rule
-
-![Grafana Alerting tab showing CRITICAL alert rule firing](screenshots/grafana-alerting.png)
-
-*Navigate to: Grafana → Alerting → Alert rules → **CRITICAL - High Application Error Rate***
+| Improvement | Implementation |
+|-------------|----------------|
+| Health checks | Docker Compose healthchecks on all services; `/health` and `/ready` endpoints |
+| SLO monitoring | 99% availability target with Prometheus alert — see [docs/SLO.md](docs/SLO.md) |
+| Rollback procedure | `scripts/rollback.sh` / `rollback.ps1` with deployment backups |
+| Failure recovery | Automated restart (`restart: unless-stopped`), setup script for full recovery |
+| Incident response | [docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md) runbook |
+| Service monitoring | `scripts/health-monitor.sh` continuous polling with failure alerting |
+| Tiered alerting | Critical vs warning routes in Alertmanager with inhibition rules |
 
 ---
 
-## Analysis
+## CI/CD Pipeline Stages
 
-### Why is JSON-structured logging more efficient than plain text logs?
+Defined in `.github/workflows/ci-cd.yml`:
 
-Plain text logs are designed for human reading: each line is free-form prose that must be parsed with regular expressions at query time. Regex parsing is slow, brittle (breaks when log format changes), and cannot reliably extract nested or typed fields.
+1. **Unit Tests** — pytest against Flask application
+2. **Security Scanning** — Gitleaks, pip-audit, Hadolint, Checkov, compose validation
+3. **Build & Container Scan** — Docker build + Trivy image scan
+4. **Deploy & Verify** (main only) — full stack deploy, environment validation, smoke tests, Prometheus target check
 
-JSON-structured logging writes each event as a **machine-readable object** with fixed keys (`timestamp`, `level`, `message`, `error_type`, etc.). This enables:
+---
 
-- **Instant field extraction** — No regex; tools like Loki's `| json` stage parse fields in O(1) per key
-- **Consistent indexing** — Fields become searchable labels/filters without custom parsers
-- **Correlation** — Structured fields (e.g., `request_id`, `user_id`) link logs to traces and metrics
-- **Lower operational cost** — Automated alerting and dashboards query specific fields directly instead of scanning raw text
+## API Endpoints
 
-In this lab, Promtail's JSON pipeline stage extracts `level` and `error_type` as Loki labels, making `{service="app"} | json | level="ERROR"` a precise, fast filter.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Service info |
+| `/health` | GET | Liveness probe |
+| `/ready` | GET | Readiness probe |
+| `/api/data` | GET | Normal traffic (generates metrics + logs) |
+| `/api/error` | GET | Single simulated error |
+| `/api/error/bulk` | GET | Bulk errors (`?count=10`) |
+| `/metrics` | GET | Prometheus metrics |
 
-### What is the fundamental technical difference between Prometheus (metrics) and Loki (logging)?
+---
 
-| Aspect            | Prometheus (Metrics)                    | Loki (Logs)                              |
-|-------------------|-----------------------------------------|------------------------------------------|
-| **Data type**     | Numeric time-series (counters, gauges)  | Discrete text events (log lines)         |
-| **Storage model** | Full values stored in time-series DB    | Log content compressed; only **labels** indexed |
-| **Query language**| PromQL (aggregations, rates, math)      | LogQL (filter, parse, label extraction)  |
-| **Cardinality**   | Low — limited label combinations        | High — millions of unique log lines      |
-| **Retention cost**| Low — numeric samples are tiny          | Higher — but Loki mitigates via label-only indexing |
-| **Best for**      | Trends, SLIs, alerting on rates         | Debugging, audit trails, error context   |
+## Screenshots
 
-**Fundamentally:** Prometheus answers *"how much and how fast?"* (aggregated numbers over time). Loki answers *"what exactly happened?"* (individual events with full context). They are complementary — metrics detect the anomaly; logs explain the cause.
+Place evidence in `screenshots/`. Example captures:
 
-### How would you handle long-term log retention (e.g., 6 months) without depleting disk resources?
+### Grafana Dashboard
 
-1. **Retention policies** — Configure Loki's `limits_config.retention_period` (already set to 7 days in this lab) and enable the compactor to automatically delete expired chunks.
+![Grafana dashboard](screenshots/grafana-dashboard.png)
 
-2. **Tiered storage** — Hot data (recent 7–30 days) on fast SSD; warm/cold data (1–6 months) offloaded to object storage (S3, GCS, Azure Blob) using Loki's `boltdb-shipper` or TSDB shipper with `object_store: s3`.
+*Grafana → Dashboards → Observability Lab → Application Metrics*
 
-3. **Compaction and compression** — Loki compacts small chunks into larger blocks with efficient compression (gzip/snappy), reducing storage by 70–90%.
+### Log Analysis (Loki)
 
-4. **Label discipline** — Avoid high-cardinality labels (e.g., `user_id`, `request_id`) in Loki; keep them in log content, not the index. This prevents index bloat.
+![Grafana logs](screenshots/grafana-logs.png)
 
-5. **Sampling and filtering** — Drop DEBUG/INFO logs at the Promtail pipeline stage for long-term retention; keep only WARN/ERROR for archival.
+*Grafana → Explore → `{container="observability-lab-app"} | json | level="ERROR"`*
 
-6. **Aggregation before archival** — Export daily error summaries to Prometheus or a data warehouse, then delete raw logs older than 30 days.
+### Alerting
 
-7. **Monitoring disk usage** — Alert on Loki volume usage and set hard quotas per tenant.
+![Grafana alerting](screenshots/grafana-alerting.png)
 
-For 6-month retention in production, the typical pattern is: **7 days hot in Loki → 6 months cold in S3 with lifecycle policies → delete after 6 months**.
+*Grafana → Alerting → CRITICAL - High Application Error Rate*
+
+### CI/CD Pipeline
+
+![CI/CD pipeline](screenshots/ci-cd-pipeline.png)
+
+*GitHub Actions → CI/CD Pipeline workflow run*
+
+> **Note:** Add your screenshots with the filenames above, or update these references to match your files.
 
 ---
 
@@ -246,31 +323,31 @@ For 6-month retention in production, the typical pattern is: **7 days hot in Lok
 
 ```
 .
+├── .github/workflows/
+│   └── ci-cd.yml              # CI/CD pipeline with security + deploy
 ├── app/
-│   ├── Dockerfile
-│   ├── main.py              # Instrumented Flask application
-│   └── requirements.txt
+│   ├── Dockerfile             # Hardened non-root container
+│   ├── main.py                # Instrumented Flask application
+│   ├── requirements.txt
+│   └── tests/                 # Unit tests (pytest)
 ├── prometheus/
-│   ├── prometheus.yml       # Scrape config
-│   └── alerts.yml           # CRITICAL alert rule
+│   ├── prometheus.yml
+│   └── alerts.yml             # Critical, warning, and SLO alerts
 ├── alertmanager/
-│   └── alertmanager.yml
-├── loki/
-│   └── loki-config.yml
-├── promtail/
-│   └── promtail-config.yml
-├── grafana/
-│   ├── dashboards/
-│   │   └── app-metrics.json
-│   └── provisioning/
-│       ├── datasources/
-│       ├── dashboards/
-│       └── alerting/
+│   └── alertmanager.yml       # Severity-based routing
+├── loki/  promtail/  grafana/
 ├── scripts/
-│   ├── trigger-alert.ps1
-│   └── trigger-alert.sh
-├── screenshots/             # Place evidence screenshots here
-├── docker-compose.yml
+│   ├── setup.sh / setup.ps1           # One-command environment setup
+│   ├── validate-environment.*         # Post-deploy validation
+│   ├── deploy.* / rollback.*          # Deployment automation
+│   ├── health-monitor.*               # Continuous health polling
+│   └── trigger-alert.*                # Alert simulation
+├── docs/
+│   ├── INCIDENT_RESPONSE.md
+│   └── SLO.md
+├── docker-compose.yml         # Full stack with health checks
+├── .env.example
+├── Makefile
 └── README.md
 ```
 
@@ -280,7 +357,15 @@ For 6-month retention in production, the typical pattern is: **7 days hot in Lok
 
 | Issue | Solution |
 |-------|----------|
-| Grafana dashboard empty | Wait 30s for first Prometheus scrape; generate traffic with `curl http://localhost:5000/api/data` |
-| No logs in Loki | Confirm Promtail is running: `docker compose logs promtail`; ensure Docker socket is mounted |
-| Alert not firing | Errors must exceed 5/min for 1 full minute; use `/api/error/bulk?count=10` |
-| Port conflict | Change host ports in `docker-compose.yml` |
+| Setup fails health check | Wait 60s; run `docker compose ps` and `docker compose logs app` |
+| Grafana dashboard empty | Generate traffic: `curl http://localhost:5000/api/data` |
+| No logs in Loki | Check Promtail: `docker compose logs promtail` |
+| Alert not firing | Use `/api/error/bulk?count=10`; wait 1–2 min for `for:` window |
+| CI Checkov fails | Run `docker compose config` locally; fix reported misconfigurations |
+| Port conflict | Change `APP_PORT` in `.env` |
+
+---
+
+## License
+
+Academic project — DevOps course final submission.

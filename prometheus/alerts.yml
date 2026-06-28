@@ -13,3 +13,45 @@ groups:
             The application generated {{ $value | printf "%.0f" }} errors in the
             last minute (threshold: > 5 errors/min). Investigate /api/error
             endpoint activity and review application logs in Grafana/Loki immediately.
+
+      - alert: ApplicationDown
+        expr: up{job="observability-lab-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: observability-lab-app
+        annotations:
+          summary: "CRITICAL: Application is unreachable"
+          description: >-
+            Prometheus cannot scrape the application metrics endpoint.
+            The service may be down or failing health checks.
+
+      - alert: HighErrorRateWarning
+        expr: increase(app_errors_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: observability-lab-app
+        annotations:
+          summary: "WARNING: Elevated error rate detected"
+          description: >-
+            More than 10 errors in the last 5 minutes. Monitor closely before
+            the error budget is exhausted.
+
+      - alert: SLOAvailabilityBreach
+        expr: |
+          (
+            sum(rate(app_requests_total{status=~"2..|3.."}[5m]))
+            /
+            sum(rate(app_requests_total[5m]))
+          ) < 0.99
+        for: 5m
+        labels:
+          severity: warning
+          service: observability-lab-app
+          slo: availability
+        annotations:
+          summary: "SLO breach: availability below 99% (5m window)"
+          description: >-
+            Success rate dropped below the 99% availability SLO target.
+            Current success ratio is below threshold for 5 minutes.

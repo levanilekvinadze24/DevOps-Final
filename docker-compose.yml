@@ -3,10 +3,16 @@ services:
     build: ./app
     container_name: observability-lab-app
     ports:
-      - "5000:5000"
+      - "${APP_PORT:-5000}:5000"
     networks:
       - observability
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       logging: "promtail"
       com.docker.compose.service: "app"
@@ -25,11 +31,18 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-7d}
     networks:
       - observability
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     depends_on:
-      - app
+      app:
+        condition: service_healthy
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
@@ -44,6 +57,11 @@ services:
     networks:
       - observability
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   grafana:
     image: grafana/grafana:10.4.2
@@ -52,8 +70,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_UNIFIED_ALERTING_ENABLED=true
       - GF_ALERTING_ENABLED=false
@@ -64,9 +82,16 @@ services:
     networks:
       - observability
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     depends_on:
-      - prometheus
-      - loki
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
 
   loki:
     image: grafana/loki:2.9.7
@@ -81,6 +106,11 @@ services:
     networks:
       - observability
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   promtail:
     image: grafana/promtail:2.9.7
@@ -95,7 +125,8 @@ services:
       - observability
     restart: unless-stopped
     depends_on:
-      - loki
+      loki:
+        condition: service_healthy
 
 networks:
   observability:

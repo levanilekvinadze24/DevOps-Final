@@ -98,7 +98,12 @@ def index():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "healthy"})
+    return jsonify({"status": "healthy", "service": "observability-lab-app"})
+
+
+@app.route("/ready")
+def ready():
+    return jsonify({"status": "ready", "service": "observability-lab-app"})
 
 
 @app.route("/api/data")
