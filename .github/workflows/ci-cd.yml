@@ -85,8 +85,23 @@ jobs:
           image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
           format: table
           exit-code: 1
-          severity: CRITICAL
+          severity: CRITICAL,HIGH
           ignore-unfixed: true
+
+      - name: Generate SBOM (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: spdx-json
+          output: sbom.spdx.json
+          scanners: vuln
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+          retention-days: 30
 
   deploy:
     name: Deploy & Verify

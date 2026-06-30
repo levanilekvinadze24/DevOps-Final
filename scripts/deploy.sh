@@ -3,22 +3,25 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
+IMAGE_NAME="${IMAGE_NAME:-observability-lab-app:latest}"
 BACKUP_DIR="${BACKUP_DIR:-.deploy-backups}"
 
 mkdir -p "$BACKUP_DIR"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP_FILE="${BACKUP_DIR}/image-${TIMESTAMP}.txt"
+ROLLBACK_TAG="observability-lab-app:rollback-${TIMESTAMP}"
 
 echo "=== Deploy — Observability Lab ==="
 
 if docker compose ps app --format json 2>/dev/null | grep -q '"State":"running"'; then
-  CURRENT_IMAGE="$(docker inspect observability-lab-app --format='{{.Config.Image}}' 2>/dev/null || echo 'none')"
-  echo "$CURRENT_IMAGE" > "$BACKUP_FILE"
-  echo "Saved rollback reference: $CURRENT_IMAGE -> $BACKUP_FILE"
+  if docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
+    docker tag "$IMAGE_NAME" "$ROLLBACK_TAG"
+    echo "$ROLLBACK_TAG" > "$BACKUP_FILE"
+    echo "Saved rollback image: ${ROLLBACK_TAG} -> ${BACKUP_FILE}"
+  fi
 fi
 
-echo "Building and deploying app (tag: ${IMAGE_TAG})..."
+echo "Building and deploying app..."
 docker compose build app
 docker compose up -d app
 

@@ -189,6 +189,7 @@ Security checks are integrated into the CI/CD pipeline (`.github/workflows/ci-cd
 | Compose validation | `docker compose config` | Infrastructure config |
 | IaC security | Checkov | Dockerfile + Docker Compose |
 | Container image scan | Trivy | Built application image (CRITICAL/HIGH) |
+| SBOM generation | Trivy | SPDX JSON artifact uploaded per build |
 
 **Additional hardening:**
 
@@ -254,7 +255,7 @@ Verify at:
 |-------------|----------------|
 | Health checks | Docker Compose healthchecks on all services; `/health` and `/ready` endpoints |
 | SLO monitoring | 99% availability target with Prometheus alert — see [docs/SLO.md](docs/SLO.md) |
-| Rollback procedure | `scripts/rollback.sh` / `rollback.ps1` with deployment backups |
+| Rollback procedure | `scripts/rollback.sh` / `rollback.ps1` retags the previous deployment image and restarts without rebuilding |
 | Failure recovery | Automated restart (`restart: unless-stopped`), setup script for full recovery |
 | Incident response | [docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md) runbook |
 | Service monitoring | `scripts/health-monitor.sh` continuous polling with failure alerting |
@@ -268,7 +269,7 @@ Defined in `.github/workflows/ci-cd.yml`:
 
 1. **Unit Tests** — pytest against Flask application
 2. **Security Scanning** — Gitleaks, pip-audit, Hadolint, Checkov, compose validation
-3. **Build & Container Scan** — Docker build + Trivy image scan
+3. **Build & Container Scan** — Docker build + Trivy image scan + SBOM artifact
 4. **Deploy & Verify** (main only) — full stack deploy, environment validation, smoke tests, Prometheus target check
 
 ---
