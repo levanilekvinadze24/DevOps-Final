@@ -52,7 +52,7 @@ fi
 
 wait_for_url "Prometheus" "http://localhost:9090/-/healthy"
 wait_for_url "Alertmanager" "http://localhost:9093/-/healthy"
-wait_for_url "Grafana" "http://localhost:3100/api/health" 36
+wait_for_url "Grafana" "http://localhost:3000/api/health" 36
 wait_for_url "Loki" "http://localhost:3100/ready"
 
 echo ""
