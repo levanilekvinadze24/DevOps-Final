@@ -253,6 +253,8 @@ make lint        # Dockerfile lint via Hadolint container
 docker run --rm -v "$(pwd):/repo" zricethezav/gitleaks:latest detect --source=/repo --no-git
 ```
 
+**Evidence screenshots:** see [Security Automation](#security-automation) under Screenshots.
+
 ---
 
 ## Monitoring, Logging & Alerting
@@ -372,7 +374,13 @@ Evidence of implemented functionality (see `screenshots/`):
 
 ![CI/CD pipeline](screenshots/axali.png)
 
-*GitHub Actions → CI/CD Pipeline #10 — all 4 jobs passing: Unit Tests, Security Scanning, Build & Container Scan, Deploy & Verify.*
+*GitHub Actions → CI/CD Pipeline — all 4 jobs passing on `main`.*
+
+### Security Automation
+
+![Security scanning CI job](screenshots/security-scanning-ci.png)
+
+*GitHub Actions → Security Scanning job — Gitleaks (`no leaks found`), pip-audit, Hadolint, Checkov, and Docker Compose validation.*
 
 ### Additional Evidence
 
