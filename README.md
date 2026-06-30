@@ -2,7 +2,7 @@
 
 A production-oriented DevOps stack built on the semester's assignments: a containerized Python application with **version control**, **CI/CD**, **security automation**, **monitoring**, **logging**, **alerting**, and **reliability** tooling. The full environment starts with a single command and runs entirely locally via Docker Compose (no paid cloud services required).
 
-**Repository:** https://github.com/levanilekvinadze24/devops-observability-lab
+**Repository:** https://github.com/levanilekvinadze24/DevOps-Final
 
 **Prior assignments integrated:**
 
@@ -12,7 +12,7 @@ A production-oriented DevOps stack built on the semester's assignments: a contai
 | Midterm | [DevOps-Midterm](https://github.com/levanilekvinadze24/DevOps-Midterm) | Deployment automation, health monitoring |
 | Observability Lab | This repository | Prometheus, Grafana, Loki, Alertmanager, full final stack |
 
-**CI/CD status:** All pipeline jobs pass on `main` — see [GitHub Actions](https://github.com/levanilekvinadze24/devops-observability-lab/actions).
+**CI/CD status:** All pipeline jobs pass on `main` — see [GitHub Actions](https://github.com/levanilekvinadze24/DevOps-Final/actions).
 
 ---
 
@@ -201,8 +201,8 @@ Rollback retags the previous deployment image and restarts without rebuilding. S
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/levanilekvinadze24/devops-observability-lab.git
-   cd devops-observability-lab
+   git clone https://github.com/levanilekvinadze24/DevOps-Final.git
+   cd DevOps-Final
    ```
 2. Ensure Docker Desktop is running
 3. Run `scripts/setup.ps1` (Windows) or `scripts/setup.sh` (Linux/macOS)
@@ -370,7 +370,7 @@ Evidence of implemented functionality (see `screenshots/`):
 
 ### CI/CD Pipeline
 
-![CI/CD pipeline](screenshots/ci-cd-pipeline1.png)
+![CI/CD pipeline](screenshots/axali.png)
 
 *GitHub Actions → CI/CD Pipeline #10 — all 4 jobs passing: Unit Tests, Security Scanning, Build & Container Scan, Deploy & Verify.*
 
@@ -433,7 +433,7 @@ Evidence of implemented functionality (see `screenshots/`):
 1. Clone repo and run `.\scripts\setup.ps1` (Windows) or `./scripts/setup.sh` (Linux/macOS)
 2. Open http://localhost:5000/health — should return `{"status":"healthy"}`
 3. Open http://localhost:3000 — Grafana dashboard (admin/admin)
-4. Check CI: https://github.com/levanilekvinadze24/devops-observability-lab/actions — all jobs green on latest `main` run
+4. Check CI: https://github.com/levanilekvinadze24/DevOps-Final/actions — all jobs green on latest `main` run
 5. Review screenshots in `screenshots/` and security docs above
 
 **No paid services required.** Everything runs locally via Docker Compose.
