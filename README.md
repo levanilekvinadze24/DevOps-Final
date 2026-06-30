@@ -374,6 +374,20 @@ Evidence of implemented functionality (see `screenshots/`):
 
 *GitHub Actions → CI/CD Pipeline — all 4 jobs passing: Unit Tests, Security Scanning, Build & Container Scan, Deploy & Verify.*
 
+### Additional Evidence
+
+#### Docker Compose — All Services Healthy
+
+![Docker Compose healthy](screenshots/docker-compose-healthy.png)
+
+*`docker compose ps` — all 6 services running; app, Prometheus, Grafana, Loki, and Alertmanager report healthy.*
+
+#### Prometheus Targets — Metrics Scraping
+
+![Prometheus targets](screenshots/prometheus-targets.png)
+
+*Prometheus → Status → Targets — `observability-lab-app` scrape target UP at `http://app:5000/metrics`.*
+
 ---
 
 ## Project Structure
