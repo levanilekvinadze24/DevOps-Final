@@ -370,9 +370,9 @@ Evidence of implemented functionality (see `screenshots/`):
 
 ### CI/CD Pipeline
 
-![CI/CD pipeline](screenshots/ci-cd-pipeline.png)
+![CI/CD pipeline](screenshots/ci-cd-pipeline1.png)
 
-*GitHub Actions → CI/CD Pipeline — all 4 jobs passing: Unit Tests, Security Scanning, Build & Container Scan, Deploy & Verify.*
+*GitHub Actions → CI/CD Pipeline #10 — all 4 jobs passing: Unit Tests, Security Scanning, Build & Container Scan, Deploy & Verify.*
 
 ### Additional Evidence
 
